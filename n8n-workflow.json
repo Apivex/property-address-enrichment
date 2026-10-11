@@ -1,0 +1,139 @@
+{
+  "name": "APIVex - Property address enrichment",
+  "nodes": [
+    {
+      "id": "instructions",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -280
+      ],
+      "parameters": {
+        "width": 780,
+        "height": 240,
+        "content": "## Property address enrichment\n1. Edit **Input addresses** (maximum 10).\n2. Create an **HTTP Header Auth** credential: name `x-apivex-key`, value your APIVex key. Select it in **Look up property**.\n3. Execute manually. Inspect **Review results**; `returned` means a property was returned, not that its address was verified.\nRequests consume quota. This starter makes one request per unique address, with no automatic retries. Errors remain in output; fix them before rerunning. No schedule is enabled.\nGuide: https://apivex.com/workflows/property-address-enrichment"
+      }
+    },
+    {
+      "id": "trigger",
+      "name": "Run manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        40
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "addresses",
+      "name": "Input addresses",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        40
+      ],
+      "parameters": {
+        "jsCode": "// Start with one address. Replace these with your own public property addresses.\nconst addresses = ['1161 Natchez Dr College Station Texas 77845'];\nif (addresses.length > 10) throw new Error('Starter limit: 10 addresses per execution.');\nreturn [...new Set(addresses.map(address => address.trim()).filter(Boolean))]\n  .map(address => ({json: {address}}));"
+      }
+    },
+    {
+      "id": "request",
+      "name": "Look up property",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        40
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "url": "https://api.apivex.com/zillow/search_address",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "address",
+              "value": "={{ $json.address }}"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1000
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "normalize",
+      "name": "Review results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        40
+      ],
+      "parameters": {
+        "jsCode": "return $input.all().map((item, i) => {\n  const address = $('Input addresses').itemMatching(i).json.address;\n  const response = item.json;\n  const code = Number(response.statusCode || 0);\n  const body = response.body;\n  const row = { input_address: address, status: 'unexpected_response', http_status: code,\n    match_review: '', zpid: '', returned_address: '', price: '', currency: '', bedrooms: '',\n    bathrooms: '', living_area: '', home_type: '', home_status: '', zestimate: '', rent_zestimate: '' };\n  if (code < 200 || code >= 300) row.status = code ? 'http_error' : 'network_error';\n  else if (body == null || (Array.isArray(body) && !body.length) ||\n      (typeof body === 'object' && !Object.keys(body).length)) row.status = 'no_result';\n  else if (Array.isArray(body)) row.status = body.length > 1 ? 'multiple_results_review' : 'unexpected_response';\n  else if (body.zpid && body.address && typeof body.address === 'object') {\n    row.status = 'returned'; row.match_review = 'required'; row.zpid = body.zpid;\n    row.returned_address = ['streetAddress','city','state','zipcode'].map(k => body.address[k]).filter(Boolean).join(', ');\n    const fields = {price:'price',currency:'currency',bedrooms:'bedrooms',bathrooms:'bathrooms',\n      living_area:'livingArea',home_type:'homeType',home_status:'homeStatus',zestimate:'zestimate',rent_zestimate:'rentZestimate'};\n    for (const [output, source] of Object.entries(fields)) row[output] = body[source] ?? '';\n  }\n  return {json:row, pairedItem:{item:i}};\n});"
+      }
+    }
+  ],
+  "connections": {
+    "Run manually": {
+      "main": [
+        [
+          {
+            "node": "Input addresses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input addresses": {
+      "main": [
+        [
+          {
+            "node": "Look up property",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Look up property": {
+      "main": [
+        [
+          {
+            "node": "Review results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
