@@ -27,11 +27,12 @@ The CSV needs an address column. Quote addresses containing commas. Existing out
 ## n8n quick start
 
 1. Import n8n-workflow.json using Import from File.
-2. Edit Input addresses (maximum 10 addresses).
+2. Create the credential below, then click Execute workflow to open the upload form.
 3. Create a Header Auth credential with header name x-apivex-key and your APIVex key as its value. Select it in Look up property.
-4. Run manually and inspect Review results. Connect the structured output to your destination.
+4. Upload a CSV with an address column or a JSON array of strings / objects with an address field. Click Enrich addresses.
+5. Inspect Extract addresses and Review results. Download property-results.csv from the binary output of Export results CSV.
 
-Uses built-in nodes; tested with n8n 2.42.6. Requests run one at a time with a one-second batching interval. There is no schedule or automatic retry. Review error rows before rerunning.
+Requires n8n 2.42.6+ and a signed-in n8n user with workflow execute permission. Uses built-in nodes. There is no fixed row cap. Exact duplicate addresses are removed before requesting data. Plan quota, file size, n8n memory and execution timeouts limit practical batch size. The whole file is validated before requests begin. Requests run sequentially, with a two-second pause after each lookup. There is no schedule or automatic retry. Review error rows before rerunning.
 
 ## Output and limitations
 
